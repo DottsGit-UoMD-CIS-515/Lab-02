@@ -1,109 +1,88 @@
-import pygame as pg
+import pygame
 from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 import math
 
-def init_window():
-    pg.init()
-    display = (800, 600)
-    pg.display.set_mode(display, DOUBLEBUF | OPENGL)
-    pg.display.set_caption('Koch Snowflake')
+# Function to draw Koch Snowflake recursively
+def draw_koch_snowflake(points, depth):
+    for i in range(1):
+        draw_koch_curve(points[i], points[(i + 1) % 3], depth)
 
-    glMatrixMode(GL_PROJECTION)
-    glLoadIdentity()
-
-def koch_curve(p1, p2, iteration):
-    if iteration == 0:
-        return [p1, p2]
+# Recursive function to draw Koch curve between two points
+def draw_koch_curve(p1, p2, depth):
+    if depth == 0:
+        # Draw a line segment between two points
+        glBegin(GL_LINES)
+        glVertex2f(p1[0], p1[1])
+        glVertex2f(p2[0], p2[1])
+        glEnd()
     else:
-        # Points dividing the segment into thirds
-        pA = [(2*p1[0] + p2[0])/3, (2*p1[1]+p2[1])/3]
-        pB = [(p1[0] + 2 * p2[0])/3, (p1[1] + 2 * p2[1])/3]
+        # Calculate the points that form the Koch curve
+        # Split the secment into 3 equal parts
+        one_third = [(2 * p1[0] + p2[0]) / 3, (2 * p1[1] + p2[1]) / 3]
+        two_third = [(p1[0] + 2 * p2[0]) / 3, (p1[1] + 2 * p2[1]) / 3]
 
-        dx = (p2[0] - p1[0])
-        dy = (p2[1] - p1[1])
+        # Calculate the peak of the equilateral triangle
+        dx = p2[0] - p1[0]
+        dy = p2[1] - p1[1]
+        length = math.sqrt(dx ** 2 + dy ** 2) / 3
+        angle = math.atan2(dy, dx) + math.pi / 3
+        peak = [one_third[0] + length * math.cos(angle), one_third[1] + length * math.sin(angle)]
 
-        # Compute the peak of the equilateral triangle
-        length = math.sqrt(dx**2 + dy**2)/3
-        angle = math.atan2(dy, dx) + math.pi/3
+        # Recursively draw the four segments
+        draw_koch_curve(p1, one_third, depth -1)
+        draw_koch_curve(one_third, peak, depth -1)
+        draw_koch_curve(peak, two_third, depth -1)
+        draw_koch_curve(two_third, p2, depth -1)
 
-        pPeak = (pA[0] + length * math.cos(angle), pA[1] + length * math.sin(angle))
+# Initialize Pygame and OpenGL
+def init_window():
+    pygame.init()
+    display = (800, 800)
+    pygame.display.set_mode(display, DOUBLEBUF | OPENGL)
+    glClearColor(1, 1, 1, 1)  # Set background to white
+    gluOrtho2D(-1, 1.5, -1, 1)
 
-        # Recursively compute the points
-        points = []
-        points += koch_curve(p1, pA, iteration -1)[:-1]
-        points += koch_curve(pA, pPeak, iteration -1)[:-1]
-        points += koch_curve(pPeak, pB, iteration -1)[:-1]
-        points += koch_curve(pB, p2, iteration -1)
-
-        return points
-
-def generate_koch_snowflake(iteration, width_units, height_units, fill_percent=0.8):
-    # Compute size based on fill_percent
-    size_width_limit = width_units * fill_percent
-    size_height_limit = (height_units * fill_percent) * (2 / math.sqrt(3))
-    size = min(size_width_limit, size_height_limit)
-
-    # Compute height
-    height = size * math.sqrt(3) / 2
-
-    # Center the snowflake in the window
-    center_x = 0
-    center_y = 0
-
-    # Define the initial triangle
-    p1 = (center_x - size / 2, center_y - height / 3)
-    p2 = (center_x + size / 2, center_y - height / 3)
-    p3 = (center_x, center_y + 2 * height / 3)
-
-    # Per-side, compute the Koch curve
-    side1 = koch_curve(p1, p2, iteration)
-    side2 = koch_curve(p2, p3, iteration)
-    side3 = koch_curve(p3, p1, iteration)
-
-    # Concatenate sides
-    points = side1[:-1] + side2[:-1] + side3
-
-    return points
-
+# Main loop to render the Koch Snowflake
 def main():
     init_window()
 
-    # Set up orthographic projection to properly fit the window around the object
-    left, right = -400, 400
-    bottom, top = -200, 300
-    gluOrtho2D(left, right, bottom, top)
-    glMatrixMode(GL_MODELVIEW)
-    glLoadIdentity()
+    glLineWidth(3.0)
+    glEnable(GL_LINE_STIPPLE)
+    glLineStipple(1, 0x00FF)
+
+    # Define the vertices of the main equilateral triangle
+    radius = 0.8
+    vertices = [
+        [radius * math.cos(0), radius * math.sin(0)],  # Bottom-left vertex
+        [radius * math.cos(2 * math.pi / 3), radius * math.sin(2 * math.pi / 3)], # Top vertex
+        [radius * math.cos(4 * math.pi / 3), radius * math.sin(4 * math.pi / 3)]  # Bottom-right vertex
+    ]
+
+    vertices[0] = [0, 0]
+    vertices[1] = [1, 0]
     
-    width_units = right - left
-    height_units = top - bottom
+    depth = 4  # Depth of recursion for Koch Snowflake
 
-    # BG color
-    glClearColor(1.0, 1.0, 1.0, 1.0)
+    running = True
+    while running:
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)  # Clear the screen
 
-    iteration = 4
+        # Draw the Koch Snowflake
+        glColor3f(0, 0, 0)  # Set the color to black
+        draw_koch_snowflake(vertices, depth)
 
-    while True:
-        # Handle events
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                pg.quit()
-                quit()
+        pygame.display.flip()  # Update the display
+        pygame.time.wait(10)  # Wait for a short duration
 
-        # Clear and set line color
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        glColor3f(0.0, 0.0, 0.0)
+        # Check for quit events
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                running = False
 
-        # Get points and draw lines
-        points = generate_koch_snowflake(iteration, width_units, height_units, fill_percent=0.8)
-        glBegin(GL_LINE_STRIP)
-        for p in points:
-            glVertex2f(p[0], p[1])
-        glEnd()
-
-        pg.display.flip()
+    glDisable(GL_LINE_STIPPLE)
+    pygame.quit()
 
 if __name__ == "__main__":
     main()
